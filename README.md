@@ -2,6 +2,10 @@
 For presentation
 
 - Changed columns's name in `Full_df.csv`. Ready to analyze.
+- Lab_9: Decision tree
+- Lab_8: Discriminant analysis
+- Lab_7: Ordinary Least Squares Regression and Logistic regression
+- Lab_6: Polynomial Regression (correlation matrix)
 
 ## Linear Regression - Qingqi
 <br>

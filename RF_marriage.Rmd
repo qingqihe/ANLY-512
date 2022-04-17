@@ -1,0 +1,117 @@
+---
+title: "Random Forest for Marriage data"
+author: "Clara Richter"
+date: '2022-04-13'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(stargazer)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(naniar)
+library(randomForest)
+library(datasets)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(countrycode)
+```
+
+```{r}
+# load data
+df <- read.csv(file = "FULL_df.csv", header = T,stringsAsFactors = T)
+```
+
+```{r}
+df$Continent <- countrycode(sourcevar = df[, "Country"],
+                            origin = "country.name",
+                            destination = "continent")
+
+```
+
+
+### fix missing values
+```{r}
+vis_miss(df)
+```
+
+```{r}
+df1 <- subset(df, select = -c(Duration_of_marriages,Duration_annotation, Share_of_single_parent_families, Country))
+
+df1 <- df1[!is.na(df1$Marriage_rate),]
+df1 <- df1[!is.na(df1$Divorce_rate),]
+```
+
+```{r}
+df1 <- na.omit(df1)
+```
+
+
+### Data Partition
+```{r}
+set.seed(7745)
+
+# create train and test subsets
+# ind <- sample(2, nrow(df1), replace = TRUE, prob = c(0.7, 0.3))
+# train <- df1[ind==1,]
+# test <- df1[ind==2,]
+```
+
+
+```{r}
+rf.fit <- randomForest(Marriage_rate ~ ., data=df1, ntree=500,
+                       keep.forest=FALSE, importance=TRUE)
+rf.fit
+```
+
+
+```{r}
+### Visualize variable importance ----------------------------------------------
+
+# Get variable importance from the model fit
+ImpData <- as.data.frame(importance(rf.fit))
+ImpData$Var.Names <- row.names(ImpData)
+
+ggplot(ImpData, aes(x=Var.Names, y=`%IncMSE`)) +
+  geom_segment( aes(x=Var.Names, xend=Var.Names, y=0, yend=`%IncMSE`), color="skyblue") +
+  geom_point(aes(size = IncNodePurity), color="blue", alpha=0.6) +
+  theme_light() +
+  coord_flip() +
+  theme(
+    legend.position="bottom",
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+# code from: https://hackernoon.com/random-forest-regression-in-r-code-and-interpretation
+
+```
+
+```{r}
+plot(rf.fit)
+```
+
+### EDA
+
+```{r}
+ggplot(df1, aes(Year, Marriage_rate, colour = Continent)) + 
+  geom_point()+ 
+  geom_smooth(method = loess, se = FALSE)
+```
+
+```{r}
+ggplot(df1, aes(Births_outside_marriage, Marriage_rate, colour = Continent)) + 
+  geom_point()
+```
+
+```{r}
+ggplot(df1, aes(Same_sex_marriage, Marriage_rate)) + 
+  geom_bar(stat="identity")
+```
+

@@ -1,0 +1,90 @@
+---
+title: "more variables"
+author: "Clara Richter"
+date: '2022-04-17'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(stargazer)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(naniar)
+```
+
+```{r}
+ccode <- read.csv(file = "API_NY.GDP.MKTP.CD_DS2_en_csv_v2_3930485.csv", header = F,stringsAsFactors = T)
+
+gdp <- read.csv(file = "DP_LIVE_17042022220349571.csv", header = T,stringsAsFactors = T)
+
+```
+
+```{r}
+ccode <- ccode[-c(1:3), ]
+ccode <- ccode[c(1:2)]
+colnames(ccode) <- c('Country','LOCATION')
+gdp <- gdp[!grepl("MLN_USD", gdp$MEASURE),]
+gdp <- gdp[ -c(2, 3, 4, 5, 8) ]
+```
+
+```{r}
+gdp_DF <- merge(gdp, ccode, by = 'LOCATION', all=T)
+colnames(gdp_DF) <- c('Code','Year', 'GDP', 'Country')
+```
+
+```{r}
+full_DF <- read.csv(file = "FULL_df.csv", header = T,stringsAsFactors = T)
+```
+
+```{r}
+full_DF <- merge(gdp_DF, full_DF, by = c('Country','Year'), all=T)
+```
+
+```{r}
+gender_LifeExp <- read.csv(file = "female-and-male-life-expectancy-at-birth-in-years.csv", header = T,stringsAsFactors = T)
+colnames(gender_LifeExp) <- c('Country','Code', 'Year', 'Male_Life_Expectancy', 'female_Life_Expectancy')
+gender_LifeExp <- gender_LifeExp[ -c(2) ]
+```
+
+```{r}
+# contraceptive_DF <- read.csv(file = "share-of-women-using-modern-contraceptive-methods.csv", header = T,stringsAsFactors = T)
+# colnames(contraceptive_DF) <- c('Country','Code', 'Year', '%_woman_using_contraceptive')
+# contraceptive_DF <- contraceptive_DF[ -c(2) ]
+```
+
+```{r}
+educational_fertility_DF <- read.csv(file = "womens-educational-attainment-vs-fertility.csv", header = T,stringsAsFactors = T)
+colnames(educational_fertility_DF) <- c('Country','Code', 'Year', 'births_per_woman', 'average_years_of_schooling_of_women_in_reproductive_age', 'Population_est', 'Continent')
+educational_fertility_DF <- educational_fertility_DF[ -c(2,7) ]
+```
+
+```{r}
+full_DF <- merge(gender_LifeExp, full_DF, by = c('Country','Year'), all=T)
+# full_DF <- merge(full_DF, contraceptive_DF, by = c('Country','Year'), all=T)
+full_DF <- merge(full_DF, educational_fertility_DF, by = c('Country','Year'), all=T)
+```
+
+```{r}
+full_DF <- full_DF[!is.na(full_DF$Marriage_rate),]
+full_DF_clean <- full_DF[ -c(5, 11, 12, 13) ]
+```
+
+```{r}
+# visualize missing values
+vis_miss(full_DF_clean)
+```
+
+```{r}
+full_DF_clean <- na.omit(full_DF_clean) 
+```
+
+```{r}
+# save as csv
+
+write.csv(full_DF_clean,"More_Variables_Cleaned.csv", row.names = FALSE)
+```
+

@@ -24,31 +24,26 @@ library(countrycode)
 
 ```{r}
 # load data
-df <- read.csv(file = "FULL_df.csv", header = T,stringsAsFactors = T)
+#df <- read.csv(file = "FULL_df.csv", header = T,stringsAsFactors = T)
+
+df1 <- read.csv(file = "More_Variables_Cleaned.csv", header = T,stringsAsFactors = T)
 ```
 
 ```{r}
-df$Continent <- countrycode(sourcevar = df[, "Country"],
+df1$Continent <- countrycode(sourcevar = df1[, "Country"],
                             origin = "country.name",
                             destination = "continent")
-
+df1$Continent <- as.factor(df1$Continent)
 ```
 
 
-### fix missing values
 ```{r}
-vis_miss(df)
-```
-
-```{r}
-df1 <- subset(df, select = -c(Duration_of_marriages,Duration_annotation, Share_of_single_parent_families, Country))
-
-df1 <- df1[!is.na(df1$Marriage_rate),]
-df1 <- df1[!is.na(df1$Divorce_rate),]
-```
-
-```{r}
-df1 <- na.omit(df1)
+# df1 <- subset(df, select = -c(Duration_of_marriages,Duration_annotation, Share_of_single_parent_families, Country))
+# 
+# df1 <- df1[!is.na(df1$Marriage_rate),]
+# df1 <- df1[!is.na(df1$Divorce_rate),]
+# 
+# df1 <- na.omit(df1)
 ```
 
 
@@ -106,12 +101,13 @@ ggplot(df1, aes(Year, Marriage_rate, colour = Continent)) +
 ```
 
 ```{r}
-ggplot(df1, aes(Births_outside_marriage, Marriage_rate, colour = Continent)) + 
+ggplot(df1, aes(Estimated_average_age_at_marriage_women, Marriage_rate, colour = Continent)) + 
   geom_point()
 ```
 
 ```{r}
-ggplot(df1, aes(Same_sex_marriage, Marriage_rate)) + 
-  geom_bar(stat="identity")
+ggplot(df1, aes(Births_outside_marriage, Marriage_rate, colour = Continent)) + 
+  geom_point()
 ```
+
 

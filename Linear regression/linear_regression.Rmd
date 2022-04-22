@@ -1,0 +1,274 @@
+---
+title: "linear regression"
+author: "qingqi he"
+date: "4/18/2022"
+output: html_document
+---
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+require(MASS)
+require(glmnet)
+library(kableExtra)
+library(stargazer)
+library(flextable)
+library(dplyr)
+library(leaps)
+library(caret)
+library(ggplot2)
+library(ggExtra)
+library(tidyr)
+library(ISLR2)
+library(ISLR)
+library(readr)
+library(reticulate)
+library(sjPlot)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load("weights", "interactions", "cjoint", "plm", "interactions", "jtools", "stats", "miceadds", "broom", "RColorBrewer", "ggstatsplot", "ggpubr", "stargazer", "sandwich", "hrbrthemes", "rms", "interplot", "coefplot", "gmodels", "car", "lattice","foreign", "ggplot2", "MASS", "Hmisc", "reshape2", "oddsratio", "tidyr", "psych", "dplyr", "tidyverse", "cjoint")
+
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE,echo = TRUE)
+
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+```
+
+
+# Clara's data
+```{r}
+setwd("/Users/qingqihe/georgetown/512")
+data <- read_csv("ANLY-512/More_Variables_Cleaned.csv")
+data2 <- read_csv("ANLY-512/data_from_worldbank.csv")
+data2 <- data2[,c(1,2,3,4)]
+
+kable(head(data)) %>% kable_styling(bootstrap_options = "striped", full_width = F, position = "center")
+```
+
+
+
+
+```{r}
+# Change the variable type
+data$Country <- as.factor(data$Country)
+data$Same_sex_marriage <- as.factor(data$Same_sex_marriage)
+data$Year <- as.factor(data$Year)
+```
+
+## split the dataset and exclude country and year
+```{r}
+set.seed(24516)
+data_exCY <- data[,-c(1,2)]
+train_sample <-createDataPartition(data_exCY$Marriage_rate,p = 0.8, list = F)
+train_data <- data_exCY[train_sample,]
+test_data <- data_exCY[-train_sample,]
+
+```
+
+
+
+# Model 1 (exclude the country and year)
+```{r}
+fit1 <- lm(Marriage_rate~., data = train_data)
+summary(fit1)
+```
+
+
+# Exclude the not significant variable
+```{r}
+
+fit2 <- lm(Marriage_rate ~.-Same_sex_marriage-average_years_of_schooling_of_women_in_reproductive_age , data = train_data)
+summary(fit2)
+
+```
+
+
+# Check the multicollinearity
+```{r}
+VIF_art <- data.frame(car::vif(fit2))
+VIF_art %>% kbl() %>% kable_styling(bootstrap_options = "striped", 
+                                          full_width = F, position = "center")
+```
+
+
+```{r}
+fit3 <- lm(Marriage_rate~(Male_Life_Expectancy + female_Life_Expectancy+ GDP + Births_outside_marriage + Divorce_rate + Estimated_average_age_at_marriage_women + births_per_woman + Population_est)^2 , data = train_data)
+summary(fit3)
+```
+
+## Since vif tell us that life expentency have high multicollinearity ,remove man expentency variable first
+```{r}
+fit4 <- lm(Marriage_rate~female_Life_Expectancy + GDP + Births_outside_marriage + Divorce_rate + Estimated_average_age_at_marriage_women + births_per_woman + Population_est, data = train_data)
+
+summary(fit4)
+
+```
+
+# Check the multicollinearity again
+```{r}
+VIF_art2 <- data.frame(car::vif(fit4))
+VIF_art2 %>% kbl() %>% kable_styling(bootstrap_options = "striped", 
+                                          full_width = F, position = "center")
+
+```
+
+# Now let's see which model the better
+```{r}
+pre1 <- fit1 %>% predict(test_data)
+p1 = data.frame(RMSE = RMSE(pre1, test_data$Marriage_rate),R2 = R2(pre1,test_data$Marriage_rate))
+
+pre2 <- fit2 %>% predict(test_data)
+p2 = data.frame(RMSE = RMSE(pre2, test_data$Marriage_rate),R2 = R2(pre2,test_data$Marriage_rate))
+
+pre3 <- fit3 %>% predict(test_data)
+p3 = data.frame(RMSE = RMSE(pre3, test_data$Marriage_rate),R2 = R2(pre3,test_data$Marriage_rate))
+
+pre4 <- fit4 %>% predict(test_data)
+p4 = data.frame(RMSE = RMSE(pre4, test_data$Marriage_rate),R2 = R2(pre4,test_data$Marriage_rate))
+```
+
+```{r}
+all = rbind(p1,p2,p3,p4)
+# add F-statistic
+all = cbind(all, c(summary(fit1)$fstatistic[1],summary(fit2)$fstatistic[1],summary(fit3)$fstatistic[1],summary(fit4)$fstatistic[1]))
+# add adj r squared
+all = cbind(all, c(summary(fit1)$adj.r.squared,summary(fit2)$adj.r.squared,summary(fit3)$adj.r.squared,summary(fit4)$adj.r.squared))
+#add RSE
+all = cbind(all, c(summary(fit1)$sigma,summary(fit2)$sigma,summary(fit3)$sigma,summary(fit4)$sigma))
+
+all = cbind(c('fit1','fit2','fit3','fit4'),all)
+colnames(all)[c(1,4,5,6)] <- c('models','F stat', 'adj.r2','RSE')
+
+all
+```
+
+
+
+
+
+
+
+
+
+# Now test my merge dataset
+
+```{r}
+# merge the data
+newdata <- merge(data,data2, all.x = TRUE)
+newdata$remarry_right <- as.factor(newdata$remarry_right)
+newdata$judgment_divorce <- as.factor(newdata$judgment_divorce)
+```
+
+
+# split the data
+```{r}
+newdata_exCY<- newdata[,-c(1,2)]
+train_sample <-createDataPartition(newdata_exCY$Marriage_rate,p = 0.8, list = F)
+train_data <- newdata_exCY[train_sample,]
+test_data <- newdata_exCY[-train_sample,]
+```
+
+# Model without country and year
+```{r}
+newfit1 <- lm(Marriage_rate~., data = train_data)
+summary(newfit1)
+```
+
+# Agian, remove some insignificant variables
+```{r}
+newfit2 <- lm(Marriage_rate~Male_Life_Expectancy
+              +female_Life_Expectancy + GDP+Births_outside_marriage 
+              + Divorce_rate+births_per_woman+Population_est + judgment_divorce, data = train_data)
+summary(newfit2)
+```
+
+# VIF
+```{r}
+VIF_art3 <- data.frame(car::vif(newfit2))
+VIF_art3 %>% kbl() %>% kable_styling(bootstrap_options = "striped", 
+                                          full_width = F, position = "center")
+```
+
+
+# So again, remove male life expectancy
+```{r}
+newfit3 <- lm(Marriage_rate~female_Life_Expectancy + GDP+Births_outside_marriage 
+              + Divorce_rate+births_per_woman+Population_est + judgment_divorce, data = train_data)
+summary(newfit3)
+
+```
+
+
+# Interactive term
+```{r}
+newfit4 <- lm(Marriage_rate~(female_Life_Expectancy + GDP+Births_outside_marriage 
+              + Divorce_rate+births_per_woman+Population_est + judgment_divorce)^2, data = train_data)
+summary(newfit4)
+
+```
+
+
+
+# Check the model
+```{r}
+pre1 <- newfit1 %>% predict(test_data)
+p1 = data.frame(RMSE = RMSE(pre1, test_data$Marriage_rate),R2 = R2(pre1,test_data$Marriage_rate))
+
+pre2 <- newfit2 %>% predict(test_data)
+p2 = data.frame(RMSE = RMSE(pre2, test_data$Marriage_rate),R2 = R2(pre2,test_data$Marriage_rate))
+
+pre3 <- newfit3 %>% predict(test_data)
+p3 = data.frame(RMSE = RMSE(pre3, test_data$Marriage_rate),R2 = R2(pre3,test_data$Marriage_rate))
+
+pre4 <- newfit4 %>% predict(test_data)
+p4 = data.frame(RMSE = RMSE(pre4, test_data$Marriage_rate),R2 = R2(pre4,test_data$Marriage_rate))
+```
+
+
+```{r}
+all2 = rbind(p1,p2,p3,p4)
+# add F-statistic
+all2 = cbind(all2, c(summary(newfit1)$fstatistic[1],summary(newfit2)$fstatistic[1],summary(newfit3)$fstatistic[1],summary(newfit4)$fstatistic[1]))
+# add adj r squared
+all2 = cbind(all2, c(summary(newfit1)$adj.r.squared,summary(newfit2)$adj.r.squared,summary(newfit3)$adj.r.squared,summary(newfit4)$adj.r.squared))
+#add RSE
+all2 = cbind(all2, c(summary(newfit1)$sigma,summary(newfit2)$sigma,summary(newfit3)$sigma,summary(newfit4)$sigma))
+
+all2 = cbind(c('fit1','fit2','fit3','fit4'),all2)
+colnames(all2)[c(1,4,5,6)] <- c('models','F stat', 'adj.r2','RSE')
+
+all2
+```
+
+
+# Best subset????
+
+```{r}
+bestfit <- regsubsets(Marriage_rate~.,train_data)
+bestfit_summary <- summary(bestfit)
+
+bestfit_summary
+
+```
+
+
+```{r}
+data.frame(Adj.R2 = which.max(bestfit_summary$adjr2),
+           CP = which.min(bestfit_summary$cp),
+           BIC = which.min(bestfit_summary$bic))
+```
+
+
+# So final model would be newfit3 model, use stargazer
+```{r}
+stargazer::stargazer(newfit3,type = "html", summary = TRUE, report = "vc*stp", ci = TRUE)
+```
+
+
+```{r}
+sjPlot::tab_model(newfit3)
+```
+
+
+
+
